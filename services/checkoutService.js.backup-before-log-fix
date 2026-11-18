@@ -1,0 +1,57 @@
+import tools from "../utils/tools.js";
+import config from "../config/config.js";
+
+/**
+ * Create raw request string for checkout URL
+ * @param {String} prepayId - Prepay ID from create order response
+ * @returns {String} - Raw request string
+ */
+export function createRawRequest(prepayId) {
+    if (!prepayId || typeof prepayId !== "string") {
+        throw new Error("A valid Telebirr prepay ID is required");
+    }
+
+    const map = {
+        appid: config.merchantAppId,
+        merch_code: config.merchantCode,
+        nonce_str: tools.createNonceStr(),
+        prepay_id: prepayId,
+        timestamp: tools.createTimeStamp(),
+    };
+
+    // Sign the original, unencoded parameter values.
+    const sign = tools.signRequestObject(map);
+
+    // URL-encode the values only after generating the signature.
+    const params = new URLSearchParams({
+        appid: String(map.appid),
+        merch_code: String(map.merch_code),
+        nonce_str: map.nonce_str,
+        prepay_id: map.prepay_id,
+        timestamp: map.timestamp,
+        sign,
+        sign_type: "SHA256WithRSA",
+    });
+
+    return params.toString();
+}
+
+/**
+ * Generate complete checkout URL
+ * @param {String} prepayId - Prepay ID from create order response
+ * @returns {String} - Complete checkout URL
+ */
+export function createCheckoutUrl(prepayId) {
+    const rawRequest = createRawRequest(prepayId);
+    const checkoutUrl = config.webBaseUrl + rawRequest + "&version=1.0&trade_type=Checkout";
+
+    console.log("=== Checkout URL Generated ===");
+    console.log("Prepay ID:", prepayId);
+    console.log("Raw Request:", rawRequest);
+    console.log("Checkout URL:", checkoutUrl);
+
+    return checkoutUrl;
+}
+
+
+

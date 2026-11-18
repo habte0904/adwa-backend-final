@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Adwa Museum Ticket Payment</title>
+</head>
+<body>
+  <h1>Adwa Museum Ticket Payment Test</h1>
+
+  <form id="paymentForm">
+    <label>Email:</label><br>
+    <input type="email" name="email" value="adwavictory@adwa.com" required><br><br>
+
+    <label>Visit Date:</label><br>
+    <input type="date" name="visit_date"><br><br>
+
+    <label>Ticket Info (JSON format):</label><br>
+    <textarea name="ticket_info" rows="5" cols="50" required>
+[
+  { "type": "Standard", "quantity": 2 },
+  { "type": "VIP", "quantity": 1 }
+]
+    </textarea><br><br>
+
+    <button type="submit">Initiate Payment</button>
+  </form>
+
+  <div id="result" style="margin-top:20px;"></div>
+
+  <script>
+    document.getElementById('paymentForm').addEventListener('submit', async function(e) {
+      e.preventDefault();
+
+      const form = e.target;
+      const email = form.email.value;
+      const visit_date = form.visit_date.value;
+      const ticket_info = form.ticket_info.value;
+
+      try {
+        const res = await fetch('http://localhost:8080/api/chapa/pay', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            email,
+            visit_date,
+            ticket_info: JSON.parse(ticket_info)
+          })
+        });
+
+        const data = await res.json();
+        if (data.checkout_url) {
+          document.getElementById('result').innerHTML = `
+            <p><strong>Redirecting to checkout:</strong></p>
+            <a href="${data.checkout_url}" target="_blank">${data.checkout_url}</a>
+          `;
+          window.open(data.checkout_url, "_blank");
+        } else {
+          document.getElementById('result').innerText = JSON.stringify(data, null, 2);
+        }
+      } catch (err) {
+        document.getElementById('result').innerText = "Error: " + err.message;
+      }
+    });
+  </script>
+</body>
+</html>

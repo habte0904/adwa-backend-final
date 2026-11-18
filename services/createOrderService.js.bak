@@ -1,0 +1,176 @@
+import request from "request";
+import applyFabricToken from "./applyFabricTokenService.js";
+import tools from "../utils/tools.js";
+import config from "../config/config.js";
+
+/**
+ * Generate unique merchant order ID
+ */
+function createMerchantOrderId() {
+    return new Date().getTime().toString();
+}
+
+/**
+ * Create request object for order creation
+ */
+function createRequestObject(title, amount, type) {
+    // Sanitize and validate title
+    const sanitizedTitle = tools.sanitizeTitle(title);
+
+    // Validate amount
+    tools.validateAmount(amount);
+
+    // Build biz_content object - order matters for signature
+    // Fields should be in alphabetical order or as per TeleBirr docs
+    const merchantOrderId = createMerchantOrderId();
+    const biz = {
+        appid: config.merchantAppId,
+        business_type: "BuyGoods",
+        merch_code: config.merchantCode,
+        merch_order_id: merchantOrderId,
+        notify_url: type === "event" ? config.eventNotifyUrl : config.notifyUrl,
+        payee_identifier: config.merchantCode,
+        payee_identifier_type: "04",
+        payee_type: "5000",
+        redirect_url: type === "event" ? `${config.eventRedirectUrl}/eventConfirmation/${merchantOrderId}` : `${config.redirectUrl}/confirmation/${merchantOrderId}`,
+        timeout_express: "120m",
+        title: sanitizedTitle,
+        total_amount: amount.toString(),
+        trade_type: "Checkout",
+        trans_currency: "ETB"
+    };
+
+    // Build request object - fields in specific order
+    const req = {
+        timestamp: tools.createTimeStamp(),
+        nonce_str: tools.createNonceStr(),
+        method: "payment.preorder",
+        version: "1.0",
+        biz_content: biz
+    };
+
+    // Generate  // Generate signature using the flattened object strategy
+    // We pass the object version of biz_content to the signer
+    const reqForSign = {
+        ...req,
+        biz_content: biz
+    };
+    req.sign = tools.signRequestObject(reqForSign);
+    req.sign_type = "SHA256WithRSA";
+
+
+    req.biz_content = biz;
+
+    console.log("=== Request Object Built ===");
+    console.log("Merchant Order ID:", biz.merch_order_id);
+    console.log("Title:", biz.title);
+    console.log("Amount:", biz.total_amount);
+    console.log("Full Request:", JSON.stringify(req, null, 2));
+
+    return req;
+}
+
+/**
+ * Request to create order with TeleBirr
+ */
+function requestCreateOrder(fabricToken, title, amount, type) {
+    return new Promise((resolve, reject) => {
+        const reqObject = createRequestObject(title, amount, type);
+
+        const options = {
+            method: "POST",
+            url: config.baseUrl + "/payment/v1/merchant/preOrder",
+            headers: {
+                "Content-Type": "application/json",
+                "X-APP-Key": config.fabricAppId,
+                Authorization: fabricToken,
+            },
+            rejectUnauthorized: false,
+            requestCert: false,
+            agent: false,
+            strictSSL: false,
+            timeout: 30000,
+            body: JSON.stringify(reqObject),
+        };
+
+        console.log("=== Creating Order ===");
+        console.log("Request Object:", JSON.stringify(reqObject, null, 2));
+
+        request(options, function (error, response) {
+            if (error) {
+                console.error("❌ Error creating order:", error);
+                reject(error);
+                return;
+            }
+
+            try {
+                console.log("Response Status Code:", response.statusCode);
+                console.log("Response Body:", response.body);
+
+                const result = JSON.parse(response.body);
+                console.log("✅ Create Order Response:", JSON.stringify(result, null, 2));
+
+                if (result.code === "0" && result.result === "SUCCESS") {
+                    resolve(result);
+                } else {
+                    // Provide helpful error message
+                    const errorMsg = result.msg || result.errorMsg || "Unknown error";
+                    const errorCode = result.code || result.errorCode || "Unknown";
+                    const errorSolution = result.errorSolution || "";
+
+                    reject(new Error(
+                        `Order creation failed (Code: ${errorCode}): ${errorMsg}. ${errorSolution}`
+                    ));
+                }
+            } catch (parseError) {
+                console.error("❌ Error parsing response:", parseError);
+                console.error("Response body:", response.body);
+                reject(parseError);
+            }
+        });
+    });
+}
+
+/**
+ * Main function to create order (gets token and creates order)
+ */
+export async function createOrder(title, amount, type = "ticket") {
+    try {
+        // Validate inputs first
+        if (!title || title.trim().length === 0) {
+            throw new Error("Title is required");
+        }
+
+        if (!amount) {
+            throw new Error("Amount is required");
+        }
+
+        // Step 1: Get fabric token
+        console.log("📝 Step 1: Getting fabric token...");
+        const tokenResult = await applyFabricToken();
+        const fabricToken = tokenResult.token;
+        console.log("✅ Fabric Token obtained:", fabricToken);
+
+        // Step 2: Create order
+        console.log("📝 Step 2: Creating order...");
+        const orderResult = await requestCreateOrder(fabricToken, title, amount, type);
+        console.log("✅ Order created successfully");
+
+        return {
+            success: true,
+            prepayId: orderResult.biz_content.prepay_id,
+            merchantOrderId: orderResult.biz_content.merch_order_id,
+            fullResponse: orderResult
+        };
+    } catch (error) {
+        console.error("❌ Error in createOrder:", error);
+        throw error;
+    }
+}
+
+export default {
+
+    requestCreateOrder,
+    createMerchantOrderId
+};
+

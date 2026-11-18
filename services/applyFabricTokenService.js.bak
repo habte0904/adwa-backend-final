@@ -1,0 +1,87 @@
+import request from "request";
+import config from "../config/config.js";
+
+/**
+ * Apply for Fabric Token from TeleBirr
+ * @returns {Promise} - Returns token object with effectiveDate, expirationDate, and token
+ */
+function applyFabricToken() {
+    return new Promise((resolve, reject) => {
+        const options = {
+            method: "POST",
+            url: config.baseUrl + "/payment/v1/token",
+            headers: {
+                "Content-Type": "application/json",
+                "X-APP-Key": config.fabricAppId,
+            },
+            rejectUnauthorized: false, // For HTTPS with self-signed certificates
+            requestCert: false,
+            agent: false,
+            strictSSL: false, // Disable SSL verification for testing
+            timeout: 30000, // 30 seconds timeout
+            body: JSON.stringify({
+                appSecret: config.appSecret,
+            }),
+        };
+
+        console.log("=== Applying for Fabric Token ===");
+        console.log("URL:", options.url);
+        //console.log("X-APP-Key:", config.fabricAppId);
+        //console.log("App Secret:", config.appSecret);
+        console.log("Telebirr token request initiated.");
+        console.log("Timeout:", options.timeout + "ms");
+
+        request(options, function (error, response) {
+            if (error) {
+                console.error("❌ Error applying for fabric token:");
+                console.error("Error Code:", error.code);
+                console.error("Error Message:", error.message);
+
+                // Provide helpful error messages
+                if (error.code === 'ETIMEDOUT' || error.code === 'ESOCKETTIMEDOUT') {
+                    reject(new Error(
+                        "Connection timeout: Cannot reach TeleBirr API server. " +
+                        "Please check:\n" +
+                        "1. Your internet connection\n" +
+                        "2. Firewall settings (port 38443 must be open)\n" +
+                        "3. VPN connection if required\n" +
+                        "4. Contact TeleBirr support to verify testbed access"
+                    ));
+                } else if (error.code === 'ECONNREFUSED') {
+                    reject(new Error(
+                        "Connection refused: TeleBirr server is not accepting connections. " +
+                        "The testbed might be down or your IP might not be whitelisted."
+                    ));
+                } else if (error.code === 'ENOTFOUND') {
+                    reject(new Error(
+                        "DNS error: Cannot resolve TeleBirr server address. Check your internet connection."
+                    ));
+                } else {
+                    reject(error);
+                }
+                return;
+            }
+
+            try {
+                console.log("Response Status Code:", response.statusCode);
+                console.log("Response Body:", response.body);
+
+                const result = JSON.parse(response.body);
+                console.log("✅ Fabric Token Response:", result);
+
+                if (result.token) {
+                    resolve(result);
+                } else {
+                    reject(new Error("No token received: " + JSON.stringify(result)));
+                }
+            } catch (parseError) {
+                console.error("❌ Error parsing response:", parseError);
+                console.error("Response body:", response.body);
+                reject(parseError);
+            }
+        });
+    });
+}
+
+export default applyFabricToken;
+

@@ -1,0 +1,97 @@
+
+import tools from "../utils/tools.js";
+import config from "../config/config.js";
+
+/**
+ * Create the signed raw request for Telebirr checkout.
+ *
+ * The signature is generated from:
+ * appid, merch_code, nonce_str, prepay_id, timestamp
+ *
+ * IMPORTANT:
+ * Keep the signing algorithm in utils/tools.js consistent with
+ * your approved Telebirr merchant integration documentation.
+ */
+export function createRawRequest(prepayId) {
+    if (
+        typeof prepayId !== "string" ||
+        prepayId.trim().length === 0
+    ) {
+        throw new Error("A valid Telebirr prepay ID is required");
+    }
+
+    if (
+        !config.merchantAppId ||
+        !config.merchantCode ||
+        !config.privateKey
+    ) {
+        throw new Error(
+            "Telebirr merchant configuration is incomplete"
+        );
+    }
+
+    // Parameters participating in the checkout signature.
+    const map = {
+        appid: String(config.merchantAppId),
+        merch_code: String(config.merchantCode),
+        nonce_str: tools.createNonceStr(),
+        prepay_id: prepayId,
+        timestamp: tools.createTimeStamp(),
+    };
+
+    // Generate the signature before adding sign and sign_type.
+    //const sign = tools.signRequestObject(map);
+const sign = tools.signCheckoutRequestObject(map);
+
+    if (!sign || typeof sign !== "string") {
+        throw new Error("Failed to generate Telebirr checkout signature");
+    }
+
+    // Construct checkout parameters.
+    const ordered = {
+        appid: map.appid,
+        merch_code: map.merch_code,
+        nonce_str: map.nonce_str,
+        prepay_id: map.prepay_id,
+        timestamp: map.timestamp,
+        sign: sign,
+        sign_type: "SHA256WithRSA",
+        version: "1.0",
+        trade_type: "Checkout",
+    };
+
+    // Encode each parameter value for the URL.
+    return Object.entries(ordered)
+        .map(([key, value]) => {
+            return `${key}=${encodeURIComponent(String(value))}`;
+        })
+        .join("&");
+}
+
+/**
+ * Generate the complete Telebirr checkout URL.
+ */
+export function createCheckoutUrl(prepayId) {
+    const baseUrl = config.webBaseUrl;
+
+    if (
+        typeof baseUrl !== "string" ||
+        !baseUrl.startsWith("https://") ||
+        !baseUrl.endsWith("?")
+    ) {
+        throw new Error(
+            "Invalid Telebirr webBaseUrl configuration"
+        );
+    }
+
+    const rawRequest = createRawRequest(prepayId);
+
+    // Do not log prepay IDs, signatures, or complete checkout URLs.
+    return baseUrl + rawRequest;
+}
+
+export default {
+    createRawRequest,
+    createCheckoutUrl,
+};
+

