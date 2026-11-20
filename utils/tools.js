@@ -206,14 +206,7 @@ function signCheckoutRequestObject(requestObject) {
         .map(key => `${key}=${requestObject[key]}`)
         .join("&");
 
-    const signer = new jsrsasign.KJUR.crypto.Signature({
-        alg: "SHA256withRSAandMGF1"
-    });
-
-    signer.init(config.privateKey);
-    signer.updateString(signOriginStr);
-
-    return jsrsasign.hextob64(signer.sign());
+    return signString(signOriginStr, config.privateKey);
 }
 export default {
     createTimeStamp,

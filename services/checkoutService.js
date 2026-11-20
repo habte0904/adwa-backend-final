@@ -39,9 +39,8 @@ export function createRawRequest(prepayId) {
         timestamp: tools.createTimeStamp(),
     };
 
-    // Generate the signature before adding sign and sign_type.
-    //const sign = tools.signRequestObject(map);
-const sign = tools.signCheckoutRequestObject(map);
+    // Generate the signature matching sign_type: "SHA256WithRSA"
+    const sign = tools.signRequestObject(map);
 
     if (!sign || typeof sign !== "string") {
         throw new Error("Failed to generate Telebirr checkout signature");

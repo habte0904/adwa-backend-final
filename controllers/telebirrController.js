@@ -200,6 +200,12 @@ export const initiatePayment = asyncHandler(async (req, res) => {
     // Step 3: Generate checkout URL
     const checkoutUrl = createCheckoutUrl(orderResult.prepayId);
 
+    console.log("=== CHECKOUT URL DEBUG ===");
+    console.log("prepay_id  :", orderResult.prepayId);
+    console.log("merchantOrderId:", orderResult.merchantOrderId);
+    console.log("checkout_url:", checkoutUrl);
+    console.log("=========================");
+
     res.json({
       tx_ref: orderResult.prepayId,
       checkout_url: checkoutUrl,
